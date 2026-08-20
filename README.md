@@ -1,5 +1,3 @@
-# agent-spend-tracker
+# agents
 
-personal tool to track agent spending and usage across different subscriptions, providers, etc
-
-testing origin commit
+Personal repository for anything agents 
