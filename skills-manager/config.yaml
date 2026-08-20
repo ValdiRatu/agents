@@ -1,0 +1,19 @@
+skillsDir: ./skills
+scope: personal
+
+harnesses:
+  cursor:
+    enabled: true
+    personalPath: ~/.cursor/skills
+    projectPath: .cursor/skills
+    method: symlink
+  claude-code:
+    enabled: false
+    personalPath: ~/.claude/skills
+    projectPath: .claude/skills
+    method: symlink
+  codex:
+    enabled: false
+    personalPath: ~/.agents/skills
+    projectPath: .agents/skills
+    method: symlink
