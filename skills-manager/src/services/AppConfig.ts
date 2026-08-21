@@ -12,6 +12,7 @@ export interface ResolvedHarness {
   readonly id: HarnessId
   readonly method: InstallMethod
   readonly root: string
+  readonly enabled: boolean
 }
 
 export class AppConfig extends Context.Tag("AppConfig")<AppConfig, AppConfigValue>() {}
@@ -52,20 +53,22 @@ const loadConfig = Effect.gen(function* () {
 
 export const AppConfigLive = Layer.effect(AppConfig, loadConfig)
 
-export const enabledHarnesses = (
+export const configuredHarnesses = (
   config: AppConfigValue,
   cwd: string
 ): ReadonlyArray<ResolvedHarness> => {
   const ids = Object.keys(config.harnesses) as Array<HarnessId>
-  return ids.flatMap((id) => {
+  return ids.map((id) => {
     const harness = config.harnesses[id]
-    if (!harness.enabled) {
-      return []
-    }
     const root =
       config.scope === "personal"
         ? expandHome(harness.personalPath)
         : NodePath.resolve(cwd, harness.projectPath)
-    return [{ id, method: harness.method, root }]
+    return { id, method: harness.method, root, enabled: harness.enabled }
   })
 }
+
+export const enabledHarnesses = (
+  config: AppConfigValue,
+  cwd: string
+): ReadonlyArray<ResolvedHarness> => configuredHarnesses(config, cwd).filter((harness) => harness.enabled)

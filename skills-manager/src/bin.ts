@@ -74,13 +74,13 @@ const install = Command.make("install", { skill: skillArg, harness: harnessOptio
       const installer = yield* Installer
       const outcomes = yield* installer.install(skill, harness)
       if (outcomes.length === 0) {
-        yield* Console.log("Nothing to install. Enable a harness in config.yaml or set metadata.harnesses.")
+        yield* Console.log("Nothing to do.")
         return
       }
       yield* Effect.forEach(outcomes, (outcome) => Console.log(formatOutcome(outcome)))
     })
   )
-).pipe(Command.withDescription("Link skills into enabled harnesses"))
+).pipe(Command.withDescription("Reconcile skill links: install targets, unlink disabled or removed harnesses"))
 
 const uninstall = Command.make(
   "uninstall",
@@ -127,7 +127,8 @@ const list = Command.make("list", {}, () =>
           onNone: () => "all enabled harnesses",
           onSome: (ids) => ids.join(", ")
         })
-        return Console.log(`${skill.name}\n  ${skill.description}\n  harnesses: ${harnesses}`)
+        const disabled = skill.disabled ? "\n  disabled: true" : ""
+        return Console.log(`${skill.name}\n  ${skill.description}\n  harnesses: ${harnesses}${disabled}`)
       })
     })
   )

@@ -31,10 +31,17 @@ A skill is installed when it is in the intersection of:
 1. Harnesses with `enabled: true` in `config.yaml`
 2. `metadata.harnesses` on the skill (comma-separated). Omit the field to target every enabled harness.
 
+`install` reconciles links against that metadata:
+
+- `metadata.disabled: true` unlinks the skill from every configured harness
+- Removing a harness from `metadata.harnesses` unlinks it from that harness
+- Remaining targets are installed as usual
+
 ```yaml
 # SKILL.md
 metadata:
   harnesses: cursor
+  disabled: true
 ```
 
 Install creates a symlink from `~/.cursor/skills/<name>` to `skills/<name>`. It will not overwrite a real directory or a symlink that points somewhere else.

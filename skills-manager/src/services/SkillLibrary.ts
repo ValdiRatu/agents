@@ -75,7 +75,8 @@ const loadSkill = (directory: string, name: string) =>
       name: frontmatter.name,
       description: frontmatter.description,
       directory: path.resolve(directory, name),
-      harnesses
+      harnesses,
+      disabled: frontmatter.metadata?.disabled === true
     })
   })
 

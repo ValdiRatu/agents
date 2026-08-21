@@ -3,7 +3,7 @@ import { Data, Effect, Option } from "effect"
 import { HarnessDisabled, InstallConflict, SkillNotFound } from "../domain/Errors.ts"
 import type { HarnessId, InstallMethod } from "../schema/Harness.ts"
 import type { Skill } from "../schema/Skill.ts"
-import { AppConfig, enabledHarnesses, type ResolvedHarness } from "./AppConfig.ts"
+import { AppConfig, configuredHarnesses, enabledHarnesses, type ResolvedHarness } from "./AppConfig.ts"
 import { SkillLibrary } from "./SkillLibrary.ts"
 
 export type InstallOutcome = Data.TaggedEnum<{
@@ -65,6 +65,12 @@ const targetsHarness = (skill: Skill, harness: ResolvedHarness) =>
     onNone: () => true,
     onSome: (ids) => ids.includes(harness.id)
   })
+
+const shouldUnlink = (skill: Skill, harness: ResolvedHarness) =>
+  skill.disabled || !targetsHarness(skill, harness)
+
+const shouldInstall = (skill: Skill, harness: ResolvedHarness) =>
+  !skill.disabled && harness.enabled && targetsHarness(skill, harness)
 
 export class Installer extends Effect.Service<Installer>()("Installer", {
   effect: Effect.gen(function* () {
@@ -187,21 +193,41 @@ export class Installer extends Effect.Service<Installer>()("Installer", {
       Effect.gen(function* () {
         const skills = yield* selectSkills(yield* library.list, skillName)
         const cwd = yield* Effect.sync(() => process.cwd())
-        const harnesses = yield* selectHarnesses(
-          enabledHarnesses(config, cwd),
-          harnessId
-        )
+        const harnesses = yield* selectHarnesses(enabledHarnesses(config, cwd), harnessId)
         return skills.flatMap((skill) =>
           harnesses.flatMap((harness) => (targetsHarness(skill, harness) ? [{ skill, harness }] : []))
         )
       })
 
+    const reconcile = (skill: Skill, harness: ResolvedHarness) =>
+      Effect.gen(function* () {
+        if (shouldUnlink(skill, harness)) {
+          const status = yield* inspect(skill, harness)
+          if (status._tag === "Missing") {
+            return Option.none<InstallOutcome>()
+          }
+          return Option.some(yield* uninstallOne(skill, harness))
+        }
+
+        if (shouldInstall(skill, harness)) {
+          return Option.some(yield* installOne(skill, harness))
+        }
+
+        return Option.none<InstallOutcome>()
+      })
+
     const install = (skillName: Option.Option<string>, harnessId: Option.Option<HarnessId>) =>
       Effect.gen(function* () {
-        const selected = yield* pairs(skillName, harnessId)
-        return yield* Effect.forEach(selected, ({ skill, harness }) => installOne(skill, harness), {
-          concurrency: 1
-        })
+        const skills = yield* selectSkills(yield* library.list, skillName)
+        const cwd = yield* Effect.sync(() => process.cwd())
+        const harnesses = yield* selectHarnesses(configuredHarnesses(config, cwd), harnessId)
+        const selected = skills.flatMap((skill) => harnesses.map((harness) => ({ skill, harness })))
+        const outcomes = yield* Effect.forEach(
+          selected,
+          ({ skill, harness }) => reconcile(skill, harness),
+          { concurrency: 1 }
+        )
+        return outcomes.flatMap((outcome) => (Option.isSome(outcome) ? [outcome.value] : []))
       })
 
     const uninstall = (skillName: Option.Option<string>, harnessId: Option.Option<HarnessId>) =>
@@ -214,7 +240,10 @@ export class Installer extends Effect.Service<Installer>()("Installer", {
 
     const status = (skillName: Option.Option<string>, harnessId: Option.Option<HarnessId>) =>
       Effect.gen(function* () {
-        const selected = yield* pairs(skillName, harnessId)
+        const skills = yield* selectSkills(yield* library.list, skillName)
+        const cwd = yield* Effect.sync(() => process.cwd())
+        const harnesses = yield* selectHarnesses(enabledHarnesses(config, cwd), harnessId)
+        const selected = skills.flatMap((skill) => harnesses.map((harness) => ({ skill, harness })))
         return yield* Effect.forEach(selected, ({ skill, harness }) => inspect(skill, harness), {
           concurrency: 1
         })
